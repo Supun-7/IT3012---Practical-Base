@@ -2,6 +2,7 @@ import random
 from collections import deque
 import heapq
 import math
+from logic_engine import KnowledgeBase
 
 
 class GreedyGridAgent:
@@ -96,6 +97,9 @@ class SearchAgent:
         self.active_algo = 'BFS'
         self.heuristic_type = 'manhattan'
         self.nodes_expanded = 0
+        self.kb = KnowledgeBase()
+        self.kb.tell_rule(['TargetVisible', 'HasDust'], 'SafeToEngage')
+        self.kb.tell_rule(['SafeToEngage', 'BloodseekerMissing'], 'Retreat')
         self.moves = {'MoveUp': (0, 1), 'MoveDown': (0, -1), 'MoveLeft': (-1, 0), 'MoveRight': (1, 0)}
 
     def manhattan_distance(self, pos, goal):
@@ -173,7 +177,9 @@ class SearchAgent:
                     heapq.heappush(frontier, (new_cost, counter, nxt, path + [action]))
         return None
 
-    def astar_search(self, start_pos, goal_pos, walls, grid_size, heuristic_type='manhattan'):
+    def astar_search(self, start_pos, goal_pos, walls, grid_size, heuristic_type='manhattan', tile_facts=None):
+        if tile_facts is None:
+            tile_facts = {}
         start, goal = tuple(start_pos), tuple(goal_pos)
         walls = set(tuple(w) for w in walls)
         frontier = []
@@ -190,6 +196,12 @@ class SearchAgent:
             reached_states.add(current_pos)
             for action, nxt in self.neighbours(current_pos, grid_size, walls):
                 if nxt not in reached_states:
+                    self.kb.clear_facts()
+                    for fact in tile_facts.get(nxt, []):
+                        self.kb.tell_fact(fact)
+                    self.kb.forward_chain()
+                    if 'Retreat' in self.kb.facts:
+                        continue
                     g_new = g_cost + 1
                     h_new = self.heuristic(nxt, goal, heuristic_type)
                     f_new = g_new + h_new
@@ -205,6 +217,10 @@ class SearchAgent:
             walls = percept['walls']
             grid_size = percept['grid_size']
             foods.sort(key=lambda f: self.manhattan_distance(start, f))
+            tile_facts = {
+                (1, 0): ['TargetVisible', 'HasDust', 'BloodseekerMissing'],
+                (0, 1): ['TargetVisible', 'HasDust'],
+            }
 
             for goal in foods:
                 if self.active_algo == 'BFS':
@@ -214,7 +230,7 @@ class SearchAgent:
                 elif self.active_algo == 'UCS':
                     path = self.ucs_search(start, goal, walls, grid_size)
                 elif self.active_algo == 'AStar':
-                    path = self.astar_search(start, goal, walls, grid_size, self.heuristic_type)
+                    path = self.astar_search(start, goal, walls, grid_size, self.heuristic_type, tile_facts=tile_facts)
                 else:
                     path = None
                 if path is not None:
