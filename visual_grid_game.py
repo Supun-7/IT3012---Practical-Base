@@ -1,6 +1,6 @@
 import random
 import tkinter as tk
-from agent import SimpleReflexAgent, ModelBasedAgent
+from agent import SimpleReflexAgent, ModelBasedAgent, SearchAgent
 
 DIRECTIONS = [(0, 1), (1, 0), (0, -1), (-1, 0)]
 
@@ -59,7 +59,11 @@ class VisualGridHuntGame:
         out_of_bounds = ax < 0 or ax >= self.width or ay < 0 or ay >= self.height
         return {
             'wall_ahead': out_of_bounds or (ax, ay) in self.walls,
-            'food_here': tuple(self.agent_pos) in self.food_positions
+            'food_here': tuple(self.agent_pos) in self.food_positions,
+            'agent_pos': list(self.agent_pos),
+            'grid_size': (self.width, self.height),
+            'walls': list(self.walls),
+            'all_food': list(self.food_positions)
         }
 
     def execute_action(self, action: str):
@@ -69,7 +73,9 @@ class VisualGridHuntGame:
             self.facing = (self.facing - 1) % 4
         elif action == 'Right':
             self.facing = (self.facing + 1) % 4
-        elif action == 'Forward':
+        elif action in ('Forward', 'MoveUp', 'MoveRight', 'MoveDown', 'MoveLeft'):
+            if action != 'Forward':
+                self.facing = {'MoveUp': 0, 'MoveRight': 1, 'MoveDown': 2, 'MoveLeft': 3}[action]
             if self.get_percept()['wall_ahead']:
                 self.score -= 5
             else:
@@ -142,6 +148,17 @@ class GridGameGUI:
                                    font=("Arial", 12), bg="#000066", fg="white")
         self.btn_model.pack(side="left", padx=5)
 
+        search_frame = tk.Frame(root)
+        search_frame.pack(pady=5)
+
+        self.search_buttons = []
+        for algo in ('BFS', 'DFS', 'UCS'):
+            btn = tk.Button(search_frame, text="Run " + algo + " Agent",
+                            command=lambda a=algo: self.run_search(a),
+                            font=("Arial", 12), bg="#047857", fg="white")
+            btn.pack(side="left", padx=5)
+            self.search_buttons.append(btn)
+
         self.draw_grid()
 
     def new_environment(self):
@@ -205,9 +222,16 @@ class GridGameGUI:
         self.canvas.create_line(cx, cy, cx + dx * self.cell_size * 0.45, cy - dy * self.cell_size * 0.45,
                                 fill="#facc15", width=3)
 
+    def run_search(self, algo):
+        agent = SearchAgent()
+        agent.active_algo = algo
+        self.run_loop(agent, algo)
+
     def set_buttons(self, state):
         self.btn_reflex.config(state=state)
         self.btn_model.config(state=state)
+        for btn in self.search_buttons:
+            btn.config(state=state)
 
     def run_loop(self, agent, agent_name):
         if self.running:
