@@ -152,8 +152,8 @@ class GridGameGUI:
         search_frame.pack(pady=5)
 
         self.search_buttons = []
-        for algo in ('BFS', 'DFS', 'UCS'):
-            btn = tk.Button(search_frame, text="Run " + algo + " Agent",
+        for algo in ('BFS', 'DFS', 'UCS', 'AStar'):
+            btn = tk.Button(search_frame, text="Run " + ("A*" if algo == 'AStar' else algo) + " Agent",
                             command=lambda a=algo: self.run_search(a),
                             font=("Arial", 12), bg="#047857", fg="white")
             btn.pack(side="left", padx=5)
