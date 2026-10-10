@@ -1,6 +1,7 @@
 import random
 from collections import deque
 import heapq
+import math
 
 
 class GreedyGridAgent:
@@ -93,8 +94,20 @@ class SearchAgent:
     def __init__(self):
         self.plan = []
         self.active_algo = 'BFS'
+        self.heuristic_type = 'manhattan'
         self.nodes_expanded = 0
         self.moves = {'MoveUp': (0, 1), 'MoveDown': (0, -1), 'MoveLeft': (-1, 0), 'MoveRight': (1, 0)}
+
+    def manhattan_distance(self, pos, goal):
+        return abs(pos[0] - goal[0]) + abs(pos[1] - goal[1])
+
+    def euclidean_distance(self, pos, goal):
+        return math.sqrt((pos[0] - goal[0]) ** 2 + (pos[1] - goal[1]) ** 2)
+
+    def heuristic(self, pos, goal, heuristic_type):
+        if heuristic_type == 'euclidean':
+            return self.euclidean_distance(pos, goal)
+        return self.manhattan_distance(pos, goal)
 
     def neighbours(self, pos, grid_size, walls):
         width, height = grid_size
@@ -160,6 +173,29 @@ class SearchAgent:
                     heapq.heappush(frontier, (new_cost, counter, nxt, path + [action]))
         return None
 
+    def astar_search(self, start_pos, goal_pos, walls, grid_size, heuristic_type='manhattan'):
+        start, goal = tuple(start_pos), tuple(goal_pos)
+        walls = set(tuple(w) for w in walls)
+        frontier = []
+        reached_states = set()
+        h_start = self.heuristic(start, goal, heuristic_type)
+        heapq.heappush(frontier, (h_start, 0, start, []))
+        while frontier:
+            f_cost, g_cost, current_pos, path_taken = heapq.heappop(frontier)
+            if current_pos in reached_states:
+                continue
+            self.nodes_expanded += 1
+            if current_pos == goal:
+                return path_taken
+            reached_states.add(current_pos)
+            for action, nxt in self.neighbours(current_pos, grid_size, walls):
+                if nxt not in reached_states:
+                    g_new = g_cost + 1
+                    h_new = self.heuristic(nxt, goal, heuristic_type)
+                    f_new = g_new + h_new
+                    heapq.heappush(frontier, (f_new, g_new, nxt, path_taken + [action]))
+        return None
+
     def sense_and_act(self, percept):
         if not percept['all_food']:
             return 'Stay'
@@ -168,7 +204,7 @@ class SearchAgent:
             foods = [tuple(f) for f in percept['all_food']]
             walls = percept['walls']
             grid_size = percept['grid_size']
-            foods.sort(key=lambda f: abs(f[0] - start[0]) + abs(f[1] - start[1]))
+            foods.sort(key=lambda f: self.manhattan_distance(start, f))
 
             for goal in foods:
                 if self.active_algo == 'BFS':
@@ -177,6 +213,8 @@ class SearchAgent:
                     path = self.dfs_search(start, goal, walls, grid_size)
                 elif self.active_algo == 'UCS':
                     path = self.ucs_search(start, goal, walls, grid_size)
+                elif self.active_algo == 'AStar':
+                    path = self.astar_search(start, goal, walls, grid_size, self.heuristic_type)
                 else:
                     path = None
                 if path is not None:
@@ -186,3 +224,9 @@ class SearchAgent:
             if not self.plan:
                 return 'Stay'
         return self.plan.pop(0)
+
+
+if __name__ == "__main__":
+    checkpoint_agent = SearchAgent()
+    print(checkpoint_agent.manhattan_distance((0, 0), (3, 4)))
+    print(checkpoint_agent.euclidean_distance((0, 0), (3, 4)))
